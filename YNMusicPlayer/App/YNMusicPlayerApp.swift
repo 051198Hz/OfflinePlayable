@@ -9,12 +9,11 @@ import SwiftUI
 
 @main
 struct YNMusicPlayerApp: App {
-    let persistenceController = PersistenceController.shared
-
+    @State private var store = MusicAssetStore.shared
+    
     var body: some Scene {
         WindowGroup {
-            ContentView()
-                .environment(\.managedObjectContext, persistenceController.container.viewContext)
+            ContentView(store: MusicAssetStore.shared)
         }
     }
 }
