@@ -12,7 +12,7 @@ import OSLog
 @Observable
 class MusicAssetStore: @unchecked Sendable {
     @MainActor static let shared = MusicAssetStore()
-    private let logger = Logger()
+    private let logger: Logger
     private let persistenceController = PersistenceController.shared
     var musics: [Music] = []
     private var musicModels: [MusicAsset] = []
@@ -20,8 +20,8 @@ class MusicAssetStore: @unchecked Sendable {
     var selectedMusic = ""
     var selectedMusicAsset: Music? = nil
     
-    @MainActor
-    private init() {
+    private init(logger: Logger = Logger()) {
+        self.logger = logger
         Task {
             let fetchMusics = loadMusic()
             guard let fetchMusics else { return }
