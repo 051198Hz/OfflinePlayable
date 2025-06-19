@@ -13,7 +13,7 @@ class PersistenceController {
 
     let container: NSPersistentContainer
     var viewContext: NSManagedObjectContext { container.viewContext }
-    var logger: Logger? = Logger()
+    let logger: Logger
     
     nonisolated(unsafe) static let preview: PersistenceController = {
         let result = PersistenceController(inMemory: true)
@@ -34,7 +34,8 @@ class PersistenceController {
     }()
 
 
-    init(inMemory: Bool = false) {
+    init(inMemory: Bool = false, logger: Logger = Logger()) {
+        self.logger = logger
         container = NSPersistentContainer(name: "YNMusicPlayer")
         if inMemory {
             container.persistentStoreDescriptions.first!.url = URL(fileURLWithPath: "/dev/null")
@@ -52,7 +53,7 @@ class PersistenceController {
                  * The store could not be migrated to the current model version.
                  Check the error message to determine what the actual problem was.
                  */
-                logger?.log("Unresolved error \(error.localizedDescription), \(error.userInfo)")
+                logger.log("Unresolved error \(error.localizedDescription), \(error.userInfo)")
                 fatalError("Unresolved error \(error), \(error.userInfo)")
             }
         })
@@ -66,7 +67,7 @@ class PersistenceController {
             try viewContext.save()
         } catch {
             let nsError = error as NSError
-            logger?.log("Unresolved error \(nsError.localizedDescription), \(nsError.userInfo)")
+            logger.log("Unresolved error \(nsError.localizedDescription), \(nsError.userInfo)")
             return false
         }
         
@@ -81,7 +82,7 @@ class PersistenceController {
             return results
         } catch {
             let nsError = error as NSError
-            logger?.log("🔴 Fetch 실패: \(nsError.localizedDescription), \(nsError.userInfo)")
+            logger.log("🔴 Fetch 실패: \(nsError.localizedDescription), \(nsError.userInfo)")
             return []
         }
     }
@@ -96,7 +97,7 @@ class PersistenceController {
             try viewContext.save()
         } catch {
             let nsError = error as NSError
-            logger?.log("🔴 Unresolved error \(nsError.localizedDescription), \(nsError.userInfo)")
+            logger.log("🔴 Unresolved error \(nsError.localizedDescription), \(nsError.userInfo)")
             return nil
         }
         return newMusic

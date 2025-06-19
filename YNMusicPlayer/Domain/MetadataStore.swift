@@ -4,7 +4,8 @@
 //
 //  Created by Yune gim on 6/12/25.
 //
-import AVFoundation
+@preconcurrency import AVFoundation
+import OSLog
 
 struct AudioMetadata : Sendable {
     let title: String
@@ -14,12 +15,15 @@ struct AudioMetadata : Sendable {
 }
 
 final class MetadataStore: @unchecked Sendable {
+    private let logger: Logger
     static let shared = MetadataStore()
 
     private var cache: [Music: AudioMetadata] = [:]
     private let queue = DispatchQueue(label: "MetadataCache", attributes: .concurrent)
     
-    private init() { }
+    private init(logger: Logger = Logger()) {
+        self.logger = logger
+    }
     
     func get(for asset: Music) -> AudioMetadata? {
         var result: AudioMetadata?
@@ -47,45 +51,44 @@ final class MetadataStore: @unchecked Sendable {
     }
 
     private func fetchMetadata(from asset: AVAsset, _ alterTitle: String? = nil) async throws -> AudioMetadata {
-        var title: String? = alterTitle
-        var artist: String?
-        var artwork: Data?
-        
-        let durarion = try await asset.load(.duration).seconds
-        
+        async let duration = try await asset.load(.duration).seconds
         let metadata = try await asset.load(.commonMetadata)
         
-        let titleItems = AVMetadataItem.metadataItems(
-            from: metadata,
-            filteredByIdentifier: AVMetadataIdentifier.commonIdentifierTitle
-        )
-        if let item = titleItems.first {
-            title = try await item.load(.stringValue)
+        let titleTask = Task { @Sendable in
+            let titleItem = AVMetadataItem.metadataItems(
+                from: metadata,
+                filteredByIdentifier: AVMetadataIdentifier.commonIdentifierTitle
+            ).first
+            
+            logger.debug("타이틀 로딩")
+            return try await titleItem?.load(.stringValue)
         }
-        
-        let artworkItems = AVMetadataItem.metadataItems(
-            from: metadata,
-            filteredByIdentifier: AVMetadataIdentifier.commonIdentifierArtwork
-        )
-        
-        if let artworkItem = artworkItems.first {
-            artwork = try await artworkItem.load(.dataValue)
+
+        let artistTask = Task { @Sendable in
+            let artistItem = AVMetadataItem.metadataItems(
+                from: metadata,
+                filteredByIdentifier: AVMetadataIdentifier.commonIdentifierArtist
+            ).first
+            
+            logger.debug("아티스트 로딩")
+            return try await artistItem?.load(.stringValue)
         }
-        
-        let artistItems = AVMetadataItem.metadataItems(
-            from: metadata,
-            filteredByIdentifier: AVMetadataIdentifier.commonIdentifierArtist
-        )
-        
-        if let artistItem = artistItems.first {
-            artist = try await artistItem.load(.stringValue)
+
+        let artworkTask = Task { @Sendable in
+            let artworkItem = AVMetadataItem.metadataItems(
+                from: metadata,
+                filteredByIdentifier: AVMetadataIdentifier.commonIdentifierArtwork
+            ).first
+            
+            logger.debug("아트워크 로딩")
+            return try await artworkItem?.load(.dataValue)
         }
         
         return AudioMetadata(
-            title: title ?? "Unknown",
-            artist: artist ?? "Unknown",
-            artwork: artwork,
-            duration: durarion,
+            title: try await titleTask.value ?? alterTitle ?? "Unknown",
+            artist: try await artistTask.value ?? "Unknown",
+            artwork: try await artworkTask.value,
+            duration: try await duration
         )
     }
 }

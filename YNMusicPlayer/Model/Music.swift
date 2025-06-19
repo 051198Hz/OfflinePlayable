@@ -8,9 +8,13 @@
 import Foundation
 import SwiftUI
 
-struct Music: Identifiable, Hashable, Sendable {
+struct Music: Identifiable {
     var id: String { fileName }
     let url: URL
     var fileName: String { url.lastPathComponent }
     let originalName: String
 }
+
+extension Music: Hashable { }
+
+extension Music: Sendable { }

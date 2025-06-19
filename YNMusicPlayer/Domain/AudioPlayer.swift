@@ -12,7 +12,7 @@ import OSLog
 
 @Observable
 final class AudioPlayer: @unchecked Sendable {
-    private let logger = Logger()
+    private let logger: Logger
     private var lock = NSLock()
     private let player: AVPlayer = AVPlayer()
     private var timeObserverToken: Any?
@@ -33,7 +33,8 @@ final class AudioPlayer: @unchecked Sendable {
     var loadMetadataTask: Task<Void, Never>?
     
     @MainActor
-    init(store assetStore: MusicAssetStore) {
+    init(store assetStore: MusicAssetStore, logger: Logger = Logger()) {
+        self.logger = logger
         self.store = assetStore
         UIApplication.shared.beginReceivingRemoteControlEvents()
         NotificationCenter.default.addObserver(
