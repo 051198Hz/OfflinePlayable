@@ -6,7 +6,7 @@
 //
 import AVFoundation
 
-struct AudioMetadata {
+struct AudioMetadata : Sendable {
     let title: String
     let artist: String
     let artwork: Data?
@@ -50,8 +50,9 @@ final class MetadataStore: @unchecked Sendable {
         var title: String? = alterTitle
         var artist: String?
         var artwork: Data?
+        
         let durarion = try await asset.load(.duration).seconds
-
+        
         let metadata = try await asset.load(.commonMetadata)
         
         let titleItems = AVMetadataItem.metadataItems(
@@ -66,6 +67,7 @@ final class MetadataStore: @unchecked Sendable {
             from: metadata,
             filteredByIdentifier: AVMetadataIdentifier.commonIdentifierArtwork
         )
+        
         if let artworkItem = artworkItems.first {
             artwork = try await artworkItem.load(.dataValue)
         }
@@ -74,6 +76,7 @@ final class MetadataStore: @unchecked Sendable {
             from: metadata,
             filteredByIdentifier: AVMetadataIdentifier.commonIdentifierArtist
         )
+        
         if let artistItem = artistItems.first {
             artist = try await artistItem.load(.stringValue)
         }
@@ -82,7 +85,7 @@ final class MetadataStore: @unchecked Sendable {
             title: title ?? "Unknown",
             artist: artist ?? "Unknown",
             artwork: artwork,
-            duration: durarion
+            duration: durarion,
         )
     }
 }

@@ -7,12 +7,12 @@
 
 import CoreData
 import Observation
+import OSLog
 
-//　이적 리셋
 @Observable
-class MusicAssetStore {
-    static let shared = MusicAssetStore()
-    
+class MusicAssetStore: @unchecked Sendable {
+    @MainActor static let shared = MusicAssetStore()
+    private let logger = Logger()
     private let persistenceController = PersistenceController.shared
     var musics: [Music] = []
     private var musicModels: [MusicAsset] = []
@@ -20,6 +20,7 @@ class MusicAssetStore {
     var selectedMusic = ""
     var selectedMusicAsset: Music? = nil
     
+    @MainActor
     private init() {
         Task {
             let fetchMusics = loadMusic()
@@ -52,7 +53,7 @@ class MusicAssetStore {
             musicModels.remove(at: offset)
         }
     }
-    
+    @MainActor
     func nextMusic(at asset: Music) -> Music? {
         guard let currentMusicIndex = musics.firstIndex(of: asset) else { return nil }
         guard currentMusicIndex < musics.count - 1 else { return nil }
@@ -61,7 +62,7 @@ class MusicAssetStore {
         selectedMusicAsset = nextMusic
         return nextMusic
     }
-    
+    @MainActor
     func prevMusic(at asset: Music) -> Music? {
         guard let currentMusicIndex = musics.firstIndex(of: asset) else { return nil }
         guard currentMusicIndex > 0 else { return nil }
@@ -86,7 +87,6 @@ private extension MusicAssetStore {
     
     func copyToAppSandbox(originalURL: URL, extensionString: String?) -> (URL, String)? {
 
-        // 2. 목적지: 앱의 Document 디렉토리
         let fileName = UUID().uuidString + "." + originalURL.pathExtension
         var destinationURL = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
             .appendingPathComponent(fileName)
@@ -94,16 +94,15 @@ private extension MusicAssetStore {
             destinationURL = destinationURL.deletingPathExtension().appendingPathExtension(extensionString)
         }
         do {
-            // 3. 이미 있으면 제거 (선택)
             if FileManager.default.fileExists(atPath: destinationURL.path) {
                 try FileManager.default.removeItem(at: destinationURL)
             }
 
-            // 4. 복사
             try FileManager.default.copyItem(at: originalURL, to: destinationURL)
-            print("✅ 복사 완료: \(destinationURL.lastPathComponent)")
+            
+            logger.debug("✅ 복사 완료: \(destinationURL.lastPathComponent)")
         } catch {
-           print( "복사 실패: \(error.localizedDescription)")
+            logger.debug("🔴 복사 실패: \(error.localizedDescription)")
             return nil
         }
         return (destinationURL, originalURL.deletingPathExtension().lastPathComponent)

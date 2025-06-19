@@ -6,60 +6,6 @@
 //
 import SwiftUI
 
-struct MarqueeText2: View {
-    let text: String
-    let font: Font = .title2
-    let speed: Double = 30 // points per second
-    let delay: Double = 1.5 // delay before animation starts
-    let isBold: Bool
-    
-    @State private var textWidth: CGFloat = .zero
-    @State private var containerWidth: CGFloat = .zero
-    @State private var animate = false
-    
-    init(_ text: String) {
-        self.text = text
-        self.isBold = true
-    }
-
-    var body: some View {
-        GeometryReader { geo in
-            let containerW = geo.size.width
-
-            ZStack {
-                Text(text)
-                    .font(font)
-                    .lineLimit(1)
-                    .bold(isBold)
-                    .background(
-                        GeometryReader { textGeo in
-                            Color.clear
-                                .onAppear {
-                                    textWidth = textGeo.size.width
-                                    containerWidth = containerW
-                                    if textWidth > containerW {
-                                        DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
-                                            animate = true
-                                        }
-                                    }
-                                }
-                        }
-                    )
-                    .offset(x: animate ? -(textWidth - containerW) : 0)
-                    .animation(
-                        textWidth > containerW ?
-                            Animation.linear(duration: (textWidth - containerW) / speed)
-                                .delay(delay)
-                                .repeatForever(autoreverses: true) :
-                            .default,
-                        value: animate
-                    )
-            }
-            .padding(.horizontal)
-        }
-    }
-}
-
 public struct MarqueeText: View {
     public var text: String
     public var font: UIFont

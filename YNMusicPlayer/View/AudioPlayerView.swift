@@ -5,8 +5,10 @@
 //  Created by Yune gim on 6/12/25.
 //
 import SwiftUI
+import OSLog
 
 struct AudioPlayerView: View {
+    private let logger = Logger()
     @Bindable var audioPlayer: AudioPlayer
     
     @State private var title: String = "재생 중이 아님"
@@ -98,7 +100,9 @@ struct AudioPlayerView: View {
     var playbackControls: some View {
         HStack(spacing: 40) {
             Button {
-                audioPlayer.playPrevMusic()
+                Task {
+                    await audioPlayer.playPrevMusic()
+                }
             } label: {
                 Image(systemName: "backward.fill")
                     .font(.system(size: 24))
@@ -106,7 +110,9 @@ struct AudioPlayerView: View {
             }
             
             Button {
-                audioPlayer.isPlaying ? audioPlayer.stop() : audioPlayer.play()
+                Task {
+                    await audioPlayer.isPlaying ? audioPlayer.stop() : audioPlayer.play()
+                }
             } label: {
                 Image(systemName: audioPlayer.isPlaying ? "pause.circle.fill" : "play.circle.fill")
                     .font(.system(size: 44))
@@ -114,7 +120,9 @@ struct AudioPlayerView: View {
             }
             
             Button {
-                audioPlayer.playNextMusic()
+                Task {
+                    await audioPlayer.playNextMusic()
+                }
             } label: {
                 Image(systemName: "forward.fill")
                     .font(.system(size: 24))
@@ -135,7 +143,7 @@ struct AudioPlayerView: View {
                 artwork = nil
             }
         } catch {
-            print("Metadata loading error")
+            logger.debug("Metadata loading error")
         }
     }
 }

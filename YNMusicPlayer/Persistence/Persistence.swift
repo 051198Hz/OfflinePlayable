@@ -9,13 +9,13 @@ import CoreData
 import os.log
 
 class PersistenceController {
-    static let shared = PersistenceController()
+    nonisolated(unsafe) static let shared = PersistenceController()
 
     let container: NSPersistentContainer
     var viewContext: NSManagedObjectContext { container.viewContext }
     var logger: Logger? = Logger()
     
-    static let preview: PersistenceController = {
+    nonisolated(unsafe) static let preview: PersistenceController = {
         let result = PersistenceController(inMemory: true)
         let viewContext = result.container.viewContext
         for _ in 0..<10 {
@@ -96,7 +96,7 @@ class PersistenceController {
             try viewContext.save()
         } catch {
             let nsError = error as NSError
-            logger?.log("Unresolved error \(nsError.localizedDescription), \(nsError.userInfo)")
+            logger?.log("🔴 Unresolved error \(nsError.localizedDescription), \(nsError.userInfo)")
             return nil
         }
         return newMusic

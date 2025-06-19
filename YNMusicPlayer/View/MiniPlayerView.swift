@@ -5,8 +5,11 @@
 //  Created by Yune gim on 6/12/25.
 //
 import SwiftUI
+import OSLog
 
 struct MiniPlayerView: View {
+    private let logger = Logger()
+    
     @Bindable var audioPlayer: AudioPlayer
     
     @State private var title: String = "재생 중이 아님"
@@ -57,7 +60,9 @@ struct MiniPlayerView: View {
             HStack(spacing: 12) {
                 // 재생/일시정지 버튼
                 Button {
-                    audioPlayer.isPlaying ? audioPlayer.stop() : audioPlayer.play()
+                    Task {
+                        await audioPlayer.isPlaying ? audioPlayer.stop() : audioPlayer.play()
+                    }
                 } label: {
                     Image(systemName: audioPlayer.isPlaying ? "pause.fill" : "play.fill")
                         .foregroundColor(.primary)
@@ -106,7 +111,7 @@ struct MiniPlayerView: View {
                 artwork = nil
             }
         } catch {
-            print("Shit")
+            logger.debug("🔴 메타데이터 로딩 실패: \(error)")
         }
     }
 }

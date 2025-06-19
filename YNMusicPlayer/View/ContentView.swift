@@ -7,8 +7,10 @@
 
 import SwiftUI
 import FileProvider
+import OSLog
 
 struct ContentView: View {
+    let logger = Logger()
     @Environment(\.verticalSizeClass) var verticalSizeClass
     
     @State private var youtubeViewToggle = false
@@ -40,18 +42,8 @@ struct ContentView: View {
                     ToolbarItem(placement: .topBarTrailing) {
                         Menu("더보기", systemImage: "ellipsis.circle") {
                             Button("공유", systemImage: "square.and.arrow.up", action: { })
-                            
-                            Button("삭제", systemImage: "trash", role: .destructive, action: { })
-                            
-                            Button {
+                            Button("유튜브 재생", systemImage: "play.circle.fill", role: .destructive) {
                                 youtubeViewToggle.toggle()
-                            } label: {
-                                Label {
-                                    Text("유튜브 재생")
-                                } icon: {
-                                    Image(systemName: "play.circle.fill")
-                                        .foregroundColor(.red) // 이미지에만 적용
-                                }
                             }
 
                             EditButton()
@@ -89,10 +81,12 @@ struct ContentView: View {
                         if assetStore.checkSet(music) {
                             isExpanded = true
                         } else {
-                            assetStore.selectedMusic = music.fileName
-                            assetStore.selectedMusicAsset = music
-                            print("선택된 항목: \(music.originalName)")
-                            audioPlayer.set(music)
+                            Task {
+                                assetStore.selectedMusic = music.fileName
+                                assetStore.selectedMusicAsset = music
+                                logger.debug("선택된 항목: \(music.originalName)")
+                                await audioPlayer.set(music)
+                            }
                         }
                     }
             }
@@ -123,11 +117,11 @@ struct ContentView: View {
         }
     }
     
-    private func play(_ music: Music) {
+    private func play(_ music: Music) async {
         assetStore.selectedMusic = music.fileName
         assetStore.selectedMusicAsset = music
-        print("선택된 항목: \(music.originalName)")
-        audioPlayer.set(music)
+        logger.debug("선택된 항목: \(music.originalName)")
+        await audioPlayer.set(music)
     }
 }
 

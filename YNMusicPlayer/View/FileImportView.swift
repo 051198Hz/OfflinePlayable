@@ -7,12 +7,14 @@
 
 import SwiftUI
 import UniformTypeIdentifiers
+import OSLog
 
 struct FileImportView: View {
     var allowedTypes: [UTType]
     var title: String
     var onPick: ([URL]) -> Void
 
+    private let logger = Logger()
     @State private var isPresented = false
 
     var body: some View {
@@ -28,11 +30,11 @@ struct FileImportView: View {
         ) { result in
             switch result {
             case .success(let urls):
-//                _ = url.startAccessingSecurityScopedResource()
+                guard urls.map({ $0.startAccessingSecurityScopedResource() }).filter({ $0 == false }).isEmpty else { return }
                 onPick(urls)
-//                url.stopAccessingSecurityScopedResource()
+                urls.forEach { $0.stopAccessingSecurityScopedResource() }
             case .failure(let error):
-                print("파일 선택 실패: \(error.localizedDescription)")
+                logger.debug("🔴 파일 선택 실패: \(error.localizedDescription)")
             }
         }
     }

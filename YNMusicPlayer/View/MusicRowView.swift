@@ -5,10 +5,11 @@
 //  Created by Yune gim on 6/12/25.
 //
 import SwiftUI
+import OSLog
 
 struct MusicRowView: View {
     let asset: Music
-    
+    private let logger = Logger()
     @State private var title: String = "불러오는 중..."
     @State private var artist: String = ""
     @State private var artwork: UIImage? = nil
@@ -55,7 +56,7 @@ struct MusicRowView: View {
                 artwork = UIImage(data: artworkData)
             }
         } catch {
-            print("Shit")
+            logger.debug("🔴 메타데이터 로딩 실패: \(error)")
         }
     }
 }

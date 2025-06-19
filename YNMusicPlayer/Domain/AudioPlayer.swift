@@ -5,42 +5,47 @@
 //  Created by Yune gim on 6/11/25.
 //
 
-import AVFoundation
 import MediaPlayer
 import Observation
+import AVFoundation
+import OSLog
 
 @Observable
-class AudioPlayer {
-    private var player: AVPlayer = AVPlayer()
-    private var item: AVPlayerItem?
-    private var currentItemUrl: URL?
+final class AudioPlayer: @unchecked Sendable {
+    private let logger = Logger()
+    private var lock = NSLock()
+    private let player: AVPlayer = AVPlayer()
     private var timeObserverToken: Any?
     private var rateObserver: NSKeyValueObservation?
     private var statusObserver: NSKeyValueObservation?
-    private let infoCenter = MPNowPlayingInfoCenter.default()
     private let commandCenter = MPRemoteCommandCenter.shared()
     private let store: MusicAssetStore
     private var shouldObserveProgress = false
+    private var session: MPNowPlayingSession?
     
     var currentAsset: Music?
     var isPlaying: Bool { player.timeControlStatus == .playing }
     var isRepeating: Bool = false
     var isSeeking: Bool = false
-
+    
     var playbackTime: Double = 0
     var duration: Double = 1
     var loadMetadataTask: Task<Void, Never>?
     
-    @MainActor init(store assetStore: MusicAssetStore) {
+    @MainActor
+    init(store assetStore: MusicAssetStore) {
         self.store = assetStore
         UIApplication.shared.beginReceivingRemoteControlEvents()
         NotificationCenter.default.addObserver(
-            self,
-            selector: #selector(playerDidFinishPlaying),
-            name: .AVPlayerItemDidPlayToEndTime,
-            object: nil
-        )
+            forName: .AVPlayerItemDidPlayToEndTime,
+            object: nil,
+            queue: .main
+        ) { notification in
+            self.playerDidFinishPlaying(notification)
+        }
         setupAudioSession()
+        self.session = MPNowPlayingSession(players: [player])
+        self.session?.automaticallyPublishesNowPlayingInfo = true
         setupRemoteTransportControls()
     }
     
@@ -48,11 +53,13 @@ class AudioPlayer {
         if let token = timeObserverToken {
             player.removeTimeObserver(token)
         }
+        
         rateObserver?.invalidate()
         statusObserver?.invalidate()
     }
     
-    func set(_ music: Music) {
+    @MainActor
+    func set(_ music: Music) async {
         shouldObserveProgress = false
         loadMetadataTask?.cancel()
         
@@ -64,31 +71,25 @@ class AudioPlayer {
         let url = music.url
         let asset = AVURLAsset(url: url)
         let item = AVPlayerItem(asset: asset)
+        
+        await setInfoCenter()
         player.replaceCurrentItem(with: item)
-        currentItemUrl = url
-        self.item = item
-        play()
-
-        setInfoCenter(duration: item.duration.seconds)
-
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { [weak self] in
-            self?.shouldObserveProgress = true
-        }
+        await play()
+        shouldObserveProgress = true
     }
     
-    func play() {
+    func play() async {
         if currentAsset == nil {
             guard let asset = store.musics.first else { return }
-            set(asset)
+            await set(asset)
         }
         player.play()
     }
     
     func stop() {
         guard currentAsset != nil else { return }
-        item = nil
-        player.pause()
         updateNowPlayingRate(0)
+        player.pause()
     }
     
     func seek(to time: Double) {
@@ -98,15 +99,16 @@ class AudioPlayer {
             self?.isSeeking = false
         }
     }
-    
-    func playNextMusic() {
+    @MainActor
+    func playNextMusic() async {
         guard let currentAsset, let nextMusic = store.nextMusic(at: currentAsset) else { return }
-        set(nextMusic)
+        await set(nextMusic)
     }
     
-    func playPrevMusic() {
+    @MainActor
+    func playPrevMusic() async {
         guard let currentAsset, let prevMusic = store.prevMusic(at: currentAsset) else { return }
-        set(prevMusic)
+        await set(prevMusic)
     }
 }
 
@@ -117,7 +119,7 @@ private extension AudioPlayer {
             try AVAudioSession.sharedInstance().setCategory(.playback, mode: .default, options: [])
             try AVAudioSession.sharedInstance().setActive(true)
         } catch {
-            print("🔴 Audio session 설정 실패: \(error)")
+            logger.debug("🔴 Audio session 설정 실패: \(error)")
         }
     }
     
@@ -139,19 +141,23 @@ private extension AudioPlayer {
             
             let time = CMTime(seconds: event.positionTime, preferredTimescale: 600)
             self?.player.seek(to: time)
-            print("🔁 시크 위치: \(event.positionTime)")
+            self?.logger.debug("🔁 시크 위치: \(event.positionTime)")
             return .success
         }
         
         commandCenter.nextTrackCommand.isEnabled = true
-        commandCenter.nextTrackCommand.addTarget { [weak self] event in
-            self?.playNextMusic()
+        commandCenter.nextTrackCommand.addTarget { event in
+            Task { @MainActor [weak self] in
+                await self?.playNextMusic()
+            }
             return .success
         }
         
         commandCenter.previousTrackCommand.isEnabled = true
-        commandCenter.previousTrackCommand.addTarget { [weak self] event in
-            self?.playPrevMusic()
+        commandCenter.previousTrackCommand.addTarget { event in
+            Task { @MainActor [weak self] in
+                await self?.playPrevMusic()
+            }
             return .success
         }
         
@@ -170,29 +176,45 @@ private extension AudioPlayer {
             }
             return .success
         }
-        
         observeProgress(player: player)
     }
     
-    func setInfoCenter(duration: Double?) {
-        infoCenter.nowPlayingInfo = [:]
-        updateNowPlayingRate(1)
-        loadMetadataTask = Task { [weak self] in
-            do {
-                guard let currentAsset = self?.currentAsset else { return }
-                let metadata = try await MetadataStore.shared.loadIfNeeded(for: currentAsset)
-                if Task.isCancelled { return }
-                self?.duration = metadata.duration
-                self?.infoCenter.nowPlayingInfo![MPMediaItemPropertyArtist] = metadata.artist
-                self?.infoCenter.nowPlayingInfo![MPMediaItemPropertyPlaybackDuration] = metadata.duration
-                self?.infoCenter.nowPlayingInfo![MPMediaItemPropertyTitle] = metadata.title
-                
-                if let artworkData = metadata.artwork, let artwork = UIImage(data: artworkData) {
-                    self?.infoCenter.nowPlayingInfo![MPMediaItemPropertyArtwork] = MPMediaItemArtwork(boundsSize: artwork.size) { _ in artwork }
-                }
-            } catch {
-                print("Shit")
+    @MainActor
+    func setInfoCenter() async {
+        do {
+            guard let currentAsset = self.currentAsset else { return }
+            async let metadata = try MetadataStore.shared.loadIfNeeded(for: currentAsset)
+            if Task.isCancelled { return }
+            self.duration = try await metadata.duration
+            
+            let nowPlayingInfoCenter = MPNowPlayingInfoCenter.default()
+
+            var info = nowPlayingInfoCenter.nowPlayingInfo ?? [String: Any]()
+
+            info[MPMediaItemPropertyArtist] = try await metadata.artist
+            info[MPMediaItemPropertyPlaybackDuration] = try await metadata.duration
+            info[MPMediaItemPropertyTitle] = try await metadata.title
+            updateNowPlayingRate(1)
+            if let artworkData = try await metadata.artwork {
+                let artwork = transferArtworkImage(artworkData)
+                info[MPMediaItemPropertyArtwork] = artwork
+            } else {
+                info[MPMediaItemPropertyArtwork] = nil
             }
+            
+            if Task.isCancelled { return }
+            
+            MPNowPlayingInfoCenter.default().nowPlayingInfo = info
+        } catch {
+            logger.debug("🔴 메타데이터 로딩 실패: \(error)")
+        }
+    }
+
+    private func transferArtworkImage(_ data: Data) -> MPMediaItemArtwork {
+        let image = UIImage(data: data)!
+        
+        return MPMediaItemArtwork(boundsSize: image.size) { _ in
+            return image
         }
     }
 }
@@ -201,31 +223,48 @@ private extension AudioPlayer {
 private extension AudioPlayer {
     func updateNowPlayingRate(_ rate: Float) {
         // 재생속도 설정, 1초에 몇초를 재생할것인지.
-        infoCenter.nowPlayingInfo![MPNowPlayingInfoPropertyPlaybackRate] = rate
+        let nowPlayingInfoCenter = MPNowPlayingInfoCenter.default()
+        var info = nowPlayingInfoCenter.nowPlayingInfo ?? [String: Any]()
+        info[MPNowPlayingInfoPropertyPlaybackRate] = rate
+        
+        nowPlayingInfoCenter.nowPlayingInfo = info
     }
     
     func observeProgress(player: AVPlayer) {
         let interval = CMTime(seconds: 0.2, preferredTimescale: CMTimeScale(NSEC_PER_SEC))
         timeObserverToken = player.addPeriodicTimeObserver(forInterval: interval, queue: .main) { [weak self] time in
-            guard let isSeeking = self?.isSeeking, isSeeking == false else { return }
-            guard let shouldProgress = self?.shouldObserveProgress, shouldProgress else {
-                self?.playbackTime = 0
+            guard let self = self else { return }
+            guard !self.isSeeking else { return }
+            guard self.shouldObserveProgress else {
+                self.playbackTime = 0
                 return
             }
-            self?.playbackTime = self?.isSeeking == true ? self?.playbackTime ?? 0 : time.seconds
-            self?.infoCenter.nowPlayingInfo![MPNowPlayingInfoPropertyElapsedPlaybackTime] = time.seconds
+            
+            self.playbackTime = time.seconds
+            
+            let nowPlayingInfoCenter = MPNowPlayingInfoCenter.default()
+
+            var info = nowPlayingInfoCenter.nowPlayingInfo ?? [String: Any]()
+            
+            info[MPNowPlayingInfoPropertyElapsedPlaybackTime] = time.seconds
+            
+            MPNowPlayingInfoCenter.default().nowPlayingInfo = info
         }
     }
     
     @objc private func playerDidFinishPlaying(_ notification: Notification) {
-        if let currentItem = player.currentItem {
-            currentItem.seek(to: .zero, completionHandler: nil)
-            duration = currentItem.duration.seconds
+        Task { @MainActor [weak self] in
+            
+            if let currentItem = self?.player.currentItem {
+                currentItem.seek(to: .zero, completionHandler: nil)
+                self?.duration = currentItem.duration.seconds
+            }
+            if let isRepeating = self?.isRepeating, isRepeating {
+                self?.player.play()
+                return
+            }
+            
+            await self?.playNextMusic()
         }
-        if isRepeating {
-            player.play()
-            return
-        }
-        playNextMusic()
     }
 }
