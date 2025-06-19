@@ -12,6 +12,7 @@ build/
 *.xcodeproj/xcuserdata/
 *.xcodeproj/project.xcworkspace/
 *.xcodeproj/xcshareddata/WorkspaceSettings.xcsettings
+*.xcassets/
 
 # === 스킴 (공유하지 않는 경우) ===
 *.xcodeproj/xcshareddata/xcschemes/*
