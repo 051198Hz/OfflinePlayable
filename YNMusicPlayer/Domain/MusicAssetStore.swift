@@ -18,7 +18,7 @@ class MusicAssetStore: @unchecked Sendable {
     private var musicModels: [MusicAsset] = []
     
     var selectedMusic = ""
-    var selectedMusicAsset: Music? = nil
+    var selectedMusicAsset: Music?
     
     private init(logger: Logger = Logger()) {
         self.logger = logger
