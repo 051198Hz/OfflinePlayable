@@ -1,0 +1,62 @@
+# === Xcode 기본 ===
+DerivedData/
+build/
+*.pbxuser
+*.mode1v3
+*.mode2v3
+*.perspectivev3
+*.xcuserstate
+
+# === 사용자 관련 ===
+*.xcworkspace/xcuserdata/
+*.xcodeproj/xcuserdata/
+*.xcodeproj/project.xcworkspace/
+*.xcodeproj/xcshareddata/WorkspaceSettings.xcsettings
+
+# === 스킴 (공유하지 않는 경우) ===
+*.xcodeproj/xcshareddata/xcschemes/*
+!*.xcodeproj/xcshareddata/xcschemes/SharedSchemeName.xcscheme
+
+# === 사이닝 관련 ===
+*.mobileprovision
+*.entitlements
+*.cer
+*.p12
+*.pem
+*.key
+
+# === 메타데이터/상태 파일 ===
+*.DS_Store
+*.swp
+*.lock
+*.tmp
+*.log
+
+# === Swift Package Manager ===
+.build/
+.swiftpm/xcode/package.xcworkspace/xcuserdata/
+.swiftpm/xcode/package.xcworkspace/xcshareddata/
+Package.resolved
+
+# === CocoaPods ===
+Pods/
+Podfile.lock
+
+# === Carthage ===
+Carthage/Build/
+
+# === fastlane ===
+fastlane/report.xml
+fastlane/screenshots/**/*.png
+fastlane/test_output
+
+# === Firebase / GoogleService ===
+GoogleService-Info.plist
+
+# === 기타 macOS 특유 ===
+Icon?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
