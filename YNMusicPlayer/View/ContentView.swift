@@ -128,3 +128,22 @@ struct ContentView: View {
 //#Preview {
 //    ContentView(store: MusicAssetStore.shared)
 //}
+
+extension Array where Element: Sendable {
+    func concurrentAsyncFilter(_ isIncluded: @Sendable @escaping (Element) async throws -> Bool) async throws -> [Element] {
+        try await withThrowingTaskGroup(of: (Element?).self) { group in
+            for element in self {
+                group.addTask {
+                    return try await isIncluded(element) ? element : nil
+                }
+            }
+            var result: [Element] = []
+            for try await maybeElement in group {
+                if let element = maybeElement {
+                    result.append(element)
+                }
+            }
+            return result
+        }
+    }
+}
