@@ -16,7 +16,7 @@ struct ContentView: View {
     @State private var youtubeViewToggle = false
     @State private var isExpanded = false
     @State var playerUUID: UUID = UUID()
-    
+    @State var musics: [Music] = []
     @Bindable var audioPlayer: AudioPlayer
     @Bindable var assetStore: MusicAssetStore
     
@@ -122,6 +122,26 @@ struct ContentView: View {
         assetStore.selectedMusicAsset = music
         logger.debug("선택된 항목: \(music.originalName)")
         await audioPlayer.set(music)
+    }
+    
+    private func search(contains query: String) async {
+        if query.isEmpty {
+            await MainActor.run {
+                musics = assetStore.musics
+            }
+            return
+        }
+        
+        do {
+            let searchResult = try await self.assetStore.musics.concurrentAsyncFilter { @Sendable music in
+                try await MetadataStore.shared.loadIfNeeded(for: music).title.localizedStandardContains(query)
+            }
+            await MainActor.run {
+                musics = searchResult
+            }
+        } catch {
+            logger.error("🔴 검색 실패: \(error)")
+        }
     }
 }
 
