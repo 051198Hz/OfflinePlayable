@@ -76,18 +76,18 @@ struct ContentView: View {
     
     var list: some View {
         List {
-            ForEach(assetStore.musics) { music in
-                MusicRowView(asset: music)
-                    .listRowBackground(assetStore.checkSet(music) ? Color.blue.opacity(0.4) : Color.gray.opacity(0.1))
+            ForEach($musics) { music in
+                MusicRowView(asset: music, logger: logger)
+                    .listRowBackground(assetStore.checkSet(music.wrappedValue) ? Color.blue.opacity(0.4) : Color.gray.opacity(0.1))
                     .onTapGesture {
-                        if assetStore.checkSet(music) {
+                        if assetStore.checkSet(music.wrappedValue) {
                             isExpanded = true
                         } else {
                             Task {
-                                assetStore.selectedMusic = music.fileName
-                                assetStore.selectedMusicAsset = music
-                                logger.debug("선택된 항목: \(music.originalName)")
-                                await audioPlayer.set(music)
+                                assetStore.selectedMusic = music.wrappedValue.fileName
+                                assetStore.selectedMusicAsset = music.wrappedValue
+                                logger.debug("선택된 항목: \(music.wrappedValue.originalName)")
+                                await audioPlayer.set(music.wrappedValue)
                             }
                         }
                     }
