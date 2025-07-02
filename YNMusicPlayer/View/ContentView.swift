@@ -13,6 +13,8 @@ struct ContentView: View {
     let logger = Logger()
     @Environment(\.verticalSizeClass) var verticalSizeClass
     
+    @State private var searchQueryString: String = ""
+    
     @State private var youtubeViewToggle = false
     @State private var isExpanded = false
     @State var playerUUID: UUID = UUID()
@@ -92,6 +94,12 @@ struct ContentView: View {
             }
             .onDelete(perform: deleteItems)
         }
+        .onChange(of: searchQueryString, initial: true) { oldValue, newValue in
+            Task.detached(priority: .userInitiated) {
+                await search(contains: newValue)
+            }
+        }
+        .searchable(text: $searchQueryString)
     }
     
     var player: some View {
